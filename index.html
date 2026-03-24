@@ -82,13 +82,22 @@
   .score-big { font-family: 'Bebas Neue', sans-serif; font-size: 64px; color: var(--green); letter-spacing: 3px; display: block; margin: 8px 0; }
   .btn-new { background: var(--accent); color: #000; border: none; border-radius: 8px; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1px; padding: 14px 32px; cursor: pointer; transition: opacity 0.2s; align-self: center; }
   .btn-new:hover { opacity: 0.85; }
+  .mode-toggle { width: 100%; max-width: 640px; display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 20px; overflow: hidden; }
+  .mode-btn { flex: 1; padding: 10px; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; border: none; background: transparent; color: var(--muted); cursor: pointer; transition: all 0.2s; }
+  .mode-btn.active { background: var(--accent); color: #000; }
+  .daily-badge { display: inline-block; font-family: 'DM Mono', monospace; font-size: 10px; background: rgba(245,197,24,0.12); color: var(--accent); border: 1px solid rgba(245,197,24,0.3); border-radius: 4px; padding: 2px 7px; margin-left: 8px; vertical-align: middle; letter-spacing: 1px; }
+  .daily-done-msg { width: 100%; max-width: 640px; background: rgba(34,197,94,0.07); border: 1px solid rgba(34,197,94,0.2); color: var(--green); padding: 10px 16px; border-radius: 8px; font-size: 12px; font-family: 'DM Mono', monospace; margin-bottom: 12px; display: none; }
+  .daily-done-msg.visible { display: block; }
+  .btn-share { background: transparent; color: var(--green); border: 1.5px solid var(--green); font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 1px; padding: 10px 24px; border-radius: 8px; cursor: pointer; transition: all 0.2s; align-self: center; }
+  .btn-share:hover { background: var(--green); color: #000; }
+  .share-copied { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--green); text-align: center; height: 16px; }
 </style>
 </head>
 <body>
 
 <header>
   <div class="logo">StatStack</div>
-  <div class="tagline">NFL · Don't Go Over</div>
+  <div class="tagline" id="modeTagline">NFL · Daily Puzzle</div>
 </header>
 
 <div class="how-to">
@@ -96,6 +105,11 @@
   Stop whenever you're ready — each guess costs −5pts. Closer = more points.
 </div>
 
+<div class="mode-toggle">
+  <button class="mode-btn active" id="btnDaily" onclick="setMode('daily')">📅 Daily Puzzle</button>
+  <button class="mode-btn" id="btnUnlimited" onclick="setMode('unlimited')">∞ Unlimited</button>
+</div>
+<div class="daily-done-msg" id="dailyDoneMsg">✓ You've already played today's daily puzzle. Come back tomorrow — or play unlimited!</div>
 <div class="puzzle-picker" id="puzzlePicker"></div>
 
 <div class="puzzle-card">
@@ -142,7 +156,11 @@
 <div class="result-panel" id="resultPanel">
   <div class="result-headline" id="resultHeadline">—</div>
   <div class="result-score" id="resultScore"></div>
-  <button class="btn-new" onclick="nextPuzzle()">Next Puzzle →</button>
+  <div id="shareRow" style="display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;">
+    <button class="btn-share" id="btnShare" onclick="shareResult()">Share Result</button>
+    <button class="btn-new" id="btnNext" onclick="nextPuzzle()">Next Puzzle →</button>
+  </div>
+  <div class="share-copied" id="shareCopied"></div>
 </div>
 
 <script>
@@ -315,21 +333,96 @@ let guesses = [];
 let gameOver = false;
 let usedPlayers = new Set();
 let searchTimeout = null;
+let mode = 'daily'; // 'daily' | 'unlimited'
 
-// ── HELPERS ───────────────────────────────────────────────────────────────────
-function randTarget(min, max, step = 500) {
-  const steps = Math.floor((max - min) / step);
-  return min + Math.floor(Math.random() * (steps + 1)) * step;
+// ── SEEDED RNG (mulberry32) ────────────────────────────────────────────────────
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
 }
 
-// ── INIT ──────────────────────────────────────────────────────────────────────
-function init() {
-  puzzle = PUZZLES[currentPuzzleIdx];
-  // Generate a fresh random target each time this puzzle is loaded
-  puzzle.target = randTarget(puzzle.minTarget, puzzle.maxTarget,
-    puzzle.unit === 'TDs' ? 5 : 500);
+function todaySeed() {
+  const d = new Date();
+  // YYYYMMDD as integer — same for everyone in same calendar day
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
+function todayKey() {
+  const d = new Date();
+  return `statstack-daily-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function randTarget(rng, min, max, step) {
+  const steps = Math.floor((max - min) / step);
+  return min + Math.floor(rng() * (steps + 1)) * step;
+}
+
+function getDailyPuzzle() {
+  const rng = mulberry32(todaySeed());
+  const idx = Math.floor(rng() * PUZZLES.length);
+  const p = PUZZLES[idx];
+  const step = p.unit === 'TDs' ? 5 : 500;
+  const target = randTarget(rng, p.minTarget, p.maxTarget, step);
+  return { idx, target };
+}
+
+// ── MODE SWITCHING ─────────────────────────────────────────────────────────────
+function setMode(newMode) {
+  mode = newMode;
+  document.getElementById('btnDaily').className = 'mode-btn' + (mode === 'daily' ? ' active' : '');
+  document.getElementById('btnUnlimited').className = 'mode-btn' + (mode === 'unlimited' ? ' active' : '');
+  document.getElementById('modeTagline').textContent = mode === 'daily' ? 'NFL · Daily Puzzle' : 'NFL · Unlimited';
+  document.getElementById('puzzlePicker').style.display = mode === 'unlimited' ? 'flex' : 'none';
+
+  if (mode === 'daily') {
+    initDaily();
+  } else {
+    currentPuzzleIdx = 0;
+    init();
+  }
+}
+
+// ── INIT DAILY ────────────────────────────────────────────────────────────────
+function initDaily() {
+  const { idx, target } = getDailyPuzzle();
+  currentPuzzleIdx = idx;
+  puzzle = { ...PUZZLES[idx], target };
   runningTotal = 0; guesses = []; gameOver = false; usedPlayers = new Set();
 
+  // Check if already played today
+  const saved = getSavedDaily();
+  const doneMsg = document.getElementById('dailyDoneMsg');
+  if (saved && saved.finished) {
+    doneMsg.className = 'daily-done-msg visible';
+  } else {
+    doneMsg.className = 'daily-done-msg';
+  }
+
+  renderUI();
+  // If already finished, show the result again
+  if (saved && saved.finished) {
+    restoreDailyResult(saved);
+  }
+}
+
+// ── INIT UNLIMITED ────────────────────────────────────────────────────────────
+function init() {
+  puzzle = PUZZLES[currentPuzzleIdx];
+  const rng = mulberry32(Math.floor(Math.random() * 1e9));
+  const step = puzzle.unit === 'TDs' ? 5 : 500;
+  puzzle.target = randTarget(rng, puzzle.minTarget, puzzle.maxTarget, step);
+  runningTotal = 0; guesses = []; gameOver = false; usedPlayers = new Set();
+  document.getElementById('dailyDoneMsg').className = 'daily-done-msg';
+  renderUI();
+  renderChips();
+}
+
+function renderUI() {
   document.getElementById('categoryDisplay').textContent = puzzle.category;
   document.getElementById('targetDisplay').textContent = puzzle.target.toLocaleString();
   document.getElementById('targetLabel').textContent = puzzle.target.toLocaleString();
@@ -345,10 +438,13 @@ function init() {
   document.getElementById('resultPanel').className = 'result-panel';
   document.getElementById('inputRow').style.display = 'flex';
   document.getElementById('errorMsg').className = 'error-msg';
+  document.getElementById('shareCopied').textContent = '';
   document.getElementById('playerInput').value = '';
   document.getElementById('autocompleteList').style.display = 'none';
   document.getElementById('playerInput').focus();
-  renderChips();
+
+  // In daily mode, hide "Next Puzzle" and show only share; unlimited shows both
+  document.getElementById('btnNext').style.display = mode === 'daily' ? 'none' : '';
 }
 
 function renderChips() {
@@ -357,11 +453,46 @@ function renderChips() {
   PUZZLES.forEach((p, i) => {
     const c = document.createElement('button');
     c.className = 'puzzle-chip' + (i === currentPuzzleIdx ? ' active' : '');
-    // Strip "Career " prefix for chip label
     c.textContent = p.category.replace('Career ', '');
     c.onclick = () => { currentPuzzleIdx = i; init(); };
     picker.appendChild(c);
   });
+}
+
+// ── DAILY PERSISTENCE ─────────────────────────────────────────────────────────
+function getSavedDaily() {
+  try {
+    const raw = localStorage.getItem(todayKey());
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveDailyResult(busted, score, guessCount, total) {
+  try {
+    localStorage.setItem(todayKey(), JSON.stringify({ finished: true, busted, score, guessCount, total, target: puzzle.target, category: puzzle.category }));
+  } catch {}
+}
+
+function restoreDailyResult(saved) {
+  // Replay guess log as locked rows, then show result panel
+  document.getElementById('inputRow').style.display = 'none';
+  gameOver = true;
+  const panel = document.getElementById('resultPanel');
+  const diff = saved.target - saved.total;
+  if (saved.busted) {
+    panel.className = 'result-panel bust visible';
+    document.getElementById('resultHeadline').textContent = 'BUSTED!';
+    document.getElementById('resultScore').innerHTML =
+      `You already played today!<br>Went over the target of <strong>${saved.target.toLocaleString()}</strong><br><br><span class="score-big">0 pts</span>`;
+  } else {
+    const pct = Math.round(((saved.target - diff) / saved.target) * 100);
+    panel.className = 'result-panel visible';
+    document.getElementById('resultHeadline').textContent = saved.score >= 90 ? 'PERFECT!' : 'NICE STOP!';
+    document.getElementById('resultScore').innerHTML =
+      `You already played today!<br>Stopped at <strong>${saved.total.toLocaleString()}</strong> / <strong>${saved.target.toLocaleString()}</strong> (${pct}%)<br>
+      ${saved.guessCount} guess${saved.guessCount !== 1 ? 'es' : ''} &nbsp;|&nbsp; Score: <strong>${saved.score} pts</strong><br><br>
+      <span class="score-big">${saved.score} pts</span>`;
+  }
 }
 
 // ── AUTOCOMPLETE ──────────────────────────────────────────────────────────────
@@ -504,14 +635,61 @@ function endGame(busted) {
       ${guesses.length} guess${guesses.length !== 1 ? 'es' : ''} × −5 = −${guessCost}pts &nbsp;|&nbsp; Proximity: +${proximity}pts<br><br>
       <span class="score-big">${score} pts</span>`;
   }
+
+  if (mode === 'daily') {
+    saveDailyResult(busted, score, guesses.length, runningTotal);
+    document.getElementById('dailyDoneMsg').className = 'daily-done-msg visible';
+  }
+}
+
+// ── SHARE ─────────────────────────────────────────────────────────────────────
+function shareResult() {
+  const busted = runningTotal > puzzle.target;
+  const diff = puzzle.target - runningTotal;
+  const guessCost = guesses.length * 5;
+  const proximity = busted ? 0 : Math.max(0, 100 - Math.round((diff / puzzle.target) * 100));
+  const score = busted ? 0 : Math.max(0, proximity - guessCost);
+  const bar = buildShareBar(proximity);
+  const d = new Date();
+  const dateStr = `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`;
+  const modeStr = mode === 'daily' ? `Daily #${todaySeed() % 10000}` : 'Unlimited';
+
+  const text = [
+    `🏈 StatStack — ${modeStr} (${dateStr})`,
+    `📊 ${puzzle.category}  |  Target: ${puzzle.target.toLocaleString()}`,
+    `${bar}`,
+    busted
+      ? `💥 BUSTED — went over by ${(runningTotal - puzzle.target).toLocaleString()}`
+      : `✅ Stopped at ${runningTotal.toLocaleString()} (${Math.round(((puzzle.target-diff)/puzzle.target)*100)}%)`,
+    `${guesses.length} guess${guesses.length !== 1 ? 'es' : ''}  |  Score: ${score} pts`,
+    `statstack.gg`
+  ].join('\n');
+
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      document.getElementById('shareCopied').textContent = '✓ Copied to clipboard!';
+      setTimeout(() => document.getElementById('shareCopied').textContent = '', 2500);
+    });
+  }
+}
+
+function buildShareBar(proximity) {
+  const filled = Math.round(proximity / 10);
+  const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
+  return `[${bar}] ${proximity}%`;
 }
 
 function nextPuzzle() {
-  currentPuzzleIdx = (currentPuzzleIdx + 1) % PUZZLES.length;
-  init();
+  if (mode === 'daily') {
+    setMode('unlimited');
+  } else {
+    currentPuzzleIdx = (currentPuzzleIdx + 1) % PUZZLES.length;
+    init();
+  }
 }
 
-init();
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+setMode('daily');
 </script>
 </body>
 </html>
