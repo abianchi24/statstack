@@ -102,7 +102,7 @@
 
 <div class="how-to">
   Pick players to accumulate stats. Get as close to the target as possible without going over.<br>
-  Stop whenever you're ready — each guess costs −5pts. Closer = more points.
+  Stop whenever you're ready — each guess costs −3pts. Closer = more points.
 </div>
 
 <div class="mode-toggle">
@@ -615,7 +615,7 @@ function stopGame() {
 function endGame(busted) {
   gameOver = true;
   document.getElementById('inputRow').style.display = 'none';
-  const guessCost = guesses.length * 5;
+  const guessCost = guesses.length * 3;
   const diff = puzzle.target - runningTotal;
   const proximity = busted ? 0 : Math.max(0, 100 - Math.round((diff / puzzle.target) * 100));
   const score = busted ? 0 : Math.max(0, proximity - guessCost);
@@ -632,7 +632,7 @@ function endGame(busted) {
     document.getElementById('resultHeadline').textContent = diff === 0 ? 'PERFECT!' : 'NICE STOP!';
     document.getElementById('resultScore').innerHTML =
       `Stopped at <strong>${runningTotal.toLocaleString()}</strong> — <strong>${diff.toLocaleString()}</strong> ${puzzle.unit} shy (${pct}% of target)<br>
-      ${guesses.length} guess${guesses.length !== 1 ? 'es' : ''} × −5 = −${guessCost}pts &nbsp;|&nbsp; Proximity: +${proximity}pts<br><br>
+      ${guesses.length} guess${guesses.length !== 1 ? 'es' : ''} × −3 = −${guessCost}pts &nbsp;|&nbsp; Proximity: +${proximity}pts<br><br>
       <span class="score-big">${score} pts</span>`;
   }
 
@@ -646,7 +646,7 @@ function endGame(busted) {
 function shareResult() {
   const busted = runningTotal > puzzle.target;
   const diff = puzzle.target - runningTotal;
-  const guessCost = guesses.length * 5;
+  const guessCost = guesses.length * 3;
   const proximity = busted ? 0 : Math.max(0, 100 - Math.round((diff / puzzle.target) * 100));
   const score = busted ? 0 : Math.max(0, proximity - guessCost);
   const bar = buildShareBar(proximity);
