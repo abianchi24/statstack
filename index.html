@@ -885,8 +885,16 @@ async function submitAuth() {
     if (error) { setAuthMsg(error.message, 'error'); btn.disabled = false; renderAuthMode(); return; }
     if (data.user) {
       // Save username to profiles
-      const { error: profErr } = await sb.from('profiles').insert({ id: data.user.id, username });
-      if (profErr) { setAuthMsg('Username taken or invalid.', 'error'); btn.disabled = false; renderAuthMode(); return; }
+      // Wait briefly for session to be active before inserting profile
+      await new Promise(r => setTimeout(r, 800));
+      const { data: { session: newSession } } = await sb.auth.getSession();
+      if (newSession) {
+        const { error: profErr } = await sb.from('profiles').insert({ id: data.user.id, username });
+        if (profErr) {
+          const msg = profErr.message?.includes('unique') ? 'Username already taken.' : 'Could not save username: ' + profErr.message;
+          setAuthMsg(msg, 'error'); btn.disabled = false; renderAuthMode(); return;
+        }
+      }
     }
     setAuthMsg('Account created! You are now signed in.', 'success');
     setTimeout(() => closeModal('authModal'), 1500);
