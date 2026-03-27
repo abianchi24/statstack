@@ -199,8 +199,7 @@ rush_career.columns = ['name', 'rushing_yards']
 rush_career = rush_career[rush_career['rushing_yards'] >= MIN_RUSH_YDS]
 rush_career = rush_career.sort_values('rushing_yards', ascending=False)
 rush_players = dict(zip(rush_career['name'], rush_career['rushing_yards']))
-print(f"  {len(rush_players)} qualifying rushers (>= {MIN_RUSH_YDS} yds)")
-  
+print(f"  {len(rush_players)} qualifying rushers (>= {MIN_RUSH_YDS} yds)") 
     }
   },
   {
@@ -219,8 +218,8 @@ rtd_career.columns = ['name', 'rushing_tds']
 rtd_career = rtd_career[rtd_career['rushing_tds'] >= MIN_RUSH_TDS]
 rtd_career = rtd_career.sort_values('rushing_tds', ascending=False)
 rtd_players = dict(zip(rtd_career['name'], rtd_career['rushing_tds']))
-print(f"  {len(rtd_players)} qualifying rushers (>= {MIN_RUSH_TDS} TDs)")
- 
+print(f"  {len(rtd_players)} qualifying rushers (>= {MIN_RUSH_TDS} TDs)") 
+
     }
   },
   {
@@ -240,7 +239,6 @@ rec_career = rec_career[rec_career['receiving_yards'] >= MIN_REC_YDS]
 rec_career = rec_career.sort_values('receiving_yards', ascending=False)
 rec_players = dict(zip(rec_career['name'], rec_career['receiving_yards']))
 print(f"  {len(rec_players)} qualifying receivers (>= {MIN_REC_YDS} yds)")
- 
     }
   },
   {
@@ -260,7 +258,6 @@ ptd_career = ptd_career[ptd_career['passing_tds'] >= MIN_PASS_TDS]
 ptd_career = ptd_career.sort_values('passing_tds', ascending=False)
 ptd_players = dict(zip(ptd_career['name'], ptd_career['passing_tds']))
 print(f"  {len(ptd_players)} qualifying QBs (>= {MIN_PASS_TDS} TDs)")
- 
     }
   }
 ];
