@@ -168,7 +168,8 @@
 const PUZZLES = [
   {
     id: 0, category: "Career Passing Yards", unit: "yds", minTarget: 40000, maxTarget: 250000,
-    players: {print("Computing career passing yards...")
+    players: {
+      print("Computing career passing yards...")
 pass_df = df[df['passing_yards'].notna()].copy()
 pass_career = (
     pass_df.groupby('player_display_name')['passing_yards']
