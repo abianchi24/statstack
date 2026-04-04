@@ -730,6 +730,11 @@ function endGame(busted) {
       if (currentUser) {
         const el = document.getElementById('scoreSubmitted');
         if (el) { el.style.display = 'block'; }
+        // Auto-open leaderboard after a short delay so user sees their result first
+        setTimeout(() => {
+          openModal('lbModal');
+          loadLeaderboard();
+        }, 1800);
       }
     });
   }
