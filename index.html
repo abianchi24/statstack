@@ -807,13 +807,15 @@ let lbTab = 'today';
 
 // ── SESSION ───────────────────────────────────────────────────────────────────
 async function initAuth() {
+  // Listen for auth changes first — fires reliably on every page load
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (session?.user) await onSignedIn(session.user);
+    else onSignedOut();
+  });
+
+  // Also explicitly restore session in case onAuthStateChange fires before listener attached
   const { data: { session } } = await sb.auth.getSession();
   if (session?.user) await onSignedIn(session.user);
-
-  sb.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session?.user) await onSignedIn(session.user);
-    if (event === 'SIGNED_OUT') onSignedOut();
-  });
 }
 
 async function onSignedIn(user) {
@@ -988,9 +990,12 @@ document.querySelectorAll('.modal-backdrop').forEach(el => {
   el.addEventListener('click', e => { if (e.target === el) el.className = 'modal-backdrop'; });
 });
 
-// ── BOOT ──────────────────────────────────────════════════════════════════════
-initAuth();
-setMode('daily');
+// ── BOOT ──────────────────════════════════════════════════════════════════════
+async function boot() {
+  await initAuth();
+  setMode('daily');
+}
+boot();
 </script>
 </body>
 </html>
