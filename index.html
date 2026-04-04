@@ -823,26 +823,32 @@ async function onSignedIn(user) {
   // Fetch username from profiles table
   const { data } = await sb.from('profiles').select('username').eq('id', user.id).single();
   currentUsername = data?.username || user.email.split('@')[0];
-  document.getElementById('btnAuth').textContent = currentUsername;
-  document.getElementById('btnAuth').className = 'btn-auth signed-in';
+  document.getElementById('btnAuth').style.display = 'none';
+  let logoutBtn = document.getElementById('btnLogout');
+  if (!logoutBtn) {
+    logoutBtn = document.createElement('button');
+    logoutBtn.id = 'btnLogout';
+    logoutBtn.className = 'btn-auth';
+    logoutBtn.onclick = () => { if (confirm('Sign out?')) sb.auth.signOut(); };
+    document.getElementById('btnAuth').parentNode.appendChild(logoutBtn);
+  }
+  logoutBtn.textContent = currentUsername + ' · Log Out';
+  logoutBtn.style.display = '';
 }
 
 function onSignedOut() {
   currentUser = null;
   currentUsername = null;
+  document.getElementById('btnAuth').style.display = '';
   document.getElementById('btnAuth').textContent = 'Sign In';
   document.getElementById('btnAuth').className = 'btn-auth';
+  const logoutBtn = document.getElementById('btnLogout');
+  if (logoutBtn) logoutBtn.style.display = 'none';
 }
 
 // ── AUTH MODAL ────────────────────────────────────────────────────────────────
 function openAuth() {
-  if (currentUser) {
-    // Already signed in — show sign out option
-    if (confirm(`Signed in as ${currentUsername}. Sign out?`)) {
-      sb.auth.signOut();
-    }
-    return;
-  }
+  if (currentUser) return; // Already signed in, logout handled by btnLogout
   authMode = 'signin';
   renderAuthMode();
   setAuthMsg('', '');
