@@ -756,7 +756,7 @@ function shareResult() {
       ? `💥 BUSTED — went over by ${(runningTotal - puzzle.target).toLocaleString()}`
       : `✅ Stopped at ${runningTotal.toLocaleString()} (${Math.round(((puzzle.target-diff)/puzzle.target)*100)}%)`,
     `${guesses.length} guess${guesses.length !== 1 ? 'es' : ''}  |  Score: ${score} pts`,
-    `statstack.gg`
+    `statstack.xyz`
   ].join('\n');
 
   if (navigator.clipboard) {
