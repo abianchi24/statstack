@@ -794,7 +794,12 @@ function playAgainDaily() {
 // ══════════════════════════════════════════════════════════════════════════════
 const SUPABASE_URL  = 'https://lnqwlltyjywlsgndqdxd.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxucXdsbHR5anl3bHNnbmRxZHhkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MzQyNzksImV4cCI6MjA5MDIxMDI3OX0.tYEjDqtn9yUY54GKeC_IhePR-hDEA8wvSmMYMhZ7GKk';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+let sb = null;
+try {
+  if (typeof supabase !== 'undefined') {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  }
+} catch(e) { console.warn('Supabase unavailable:', e); }
 
 let lbTab = 'today';
 
@@ -807,6 +812,7 @@ async function submitScoreWithName() {
 
   if (!name) { confirmEl.style.color = 'var(--accent2)'; confirmEl.textContent = 'Please enter a name.'; return; }
   if (name.length < 2) { confirmEl.style.color = 'var(--accent2)'; confirmEl.textContent = 'Name must be at least 2 characters.'; return; }
+  if (!sb) { confirmEl.style.color = 'var(--accent2)'; confirmEl.textContent = 'Leaderboard unavailable — could not connect.'; return; }
 
   btn.disabled = true;
   btn.textContent = '...';
@@ -862,6 +868,7 @@ function switchLbTab(tab) {
 
 async function loadLeaderboard() {
   const list = document.getElementById('lbList');
+  if (!sb) { list.innerHTML = '<div class="lb-empty">Leaderboard unavailable — could not connect.</div>'; return; }
   list.innerHTML = '<div class="lb-loading">Loading...</div>';
 
   let query = sb.from('scores')
@@ -908,4 +915,6 @@ document.querySelectorAll('.modal-backdrop').forEach(el => {
 
 // ── BOOT ──────────────────────────────────────────────────────────────────────
 setMode('daily');
+</script>
+</body>
 </html>
