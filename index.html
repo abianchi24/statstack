@@ -701,7 +701,8 @@ function endGame(busted) {
   const guessCost = guesses.length * 3;
   const diff = puzzle.target - runningTotal;
   const proximity = busted ? 0 : Math.max(0, 100 - Math.round((diff / puzzle.target) * 100));
-  const score = busted ? 0 : Math.max(0, proximity - guessCost);
+  const perfect = !busted && diff === 0;
+  const score = busted ? 0 : (perfect ? 100 : Math.max(0, proximity - guessCost));
   const panel = document.getElementById('resultPanel');
 
   if (busted) {
@@ -712,11 +713,13 @@ function endGame(busted) {
   } else {
     const pct = Math.round(((puzzle.target - diff) / puzzle.target) * 100);
     panel.className = 'result-panel visible';
-    document.getElementById('resultHeadline').textContent = diff === 0 ? 'PERFECT!' : 'NICE STOP!';
-    document.getElementById('resultScore').innerHTML =
-      `Stopped at <strong>${runningTotal.toLocaleString()}</strong> — <strong>${diff.toLocaleString()}</strong> ${puzzle.unit} shy (${pct}% of target)<br>
-      ${guesses.length} guess${guesses.length !== 1 ? 'es' : ''} × −3 = −${guessCost}pts &nbsp;|&nbsp; Proximity: +${proximity}pts<br><br>
-      <span class="score-big">${score} pts</span>`;
+    document.getElementById('resultHeadline').textContent = perfect ? 'PERFECT!' : 'NICE STOP!';
+    document.getElementById('resultScore').innerHTML = perfect
+      ? `Exact match! <strong>${runningTotal.toLocaleString()}</strong> = <strong>${puzzle.target.toLocaleString()}</strong> — no guess deductions<br><br>
+        <span class="score-big">100 pts</span>`
+      : `Stopped at <strong>${runningTotal.toLocaleString()}</strong> — <strong>${diff.toLocaleString()}</strong> ${puzzle.unit} shy (${pct}% of target)<br>
+        ${guesses.length} guess${guesses.length !== 1 ? 'es' : ''} × −3 = −${guessCost}pts &nbsp;|&nbsp; Proximity: +${proximity}pts<br><br>
+        <span class="score-big">${score} pts</span>`;
   }
 
   if (mode === 'daily') {
@@ -742,7 +745,8 @@ function shareResult() {
   const diff = puzzle.target - runningTotal;
   const guessCost = guesses.length * 3;
   const proximity = busted ? 0 : Math.max(0, 100 - Math.round((diff / puzzle.target) * 100));
-  const score = busted ? 0 : Math.max(0, proximity - guessCost);
+  const perfect = !busted && diff === 0;
+  const score = busted ? 0 : (perfect ? 100 : Math.max(0, proximity - guessCost));
   const bar = buildShareBar(proximity);
   const d = new Date();
   const dateStr = `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`;
@@ -823,7 +827,8 @@ async function submitScoreWithName() {
   const busted  = runningTotal > puzzle.target;
   const diff    = puzzle.target - runningTotal;
   const proximity = busted ? 0 : Math.max(0, 100 - Math.round((diff / puzzle.target) * 100));
-  const score   = busted ? 0 : Math.max(0, proximity - (guesses.length * 3));
+  const perfect = !busted && diff === 0;
+  const score   = busted ? 0 : (perfect ? 100 : Math.max(0, proximity - (guesses.length * 3)));
 
   const { error } = await sb.from('scores').insert({
     username:    name,
