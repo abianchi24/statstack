@@ -82,6 +82,9 @@
   .result-panel.bust .result-headline { color: var(--accent2); }
   .result-panel:not(.bust) .result-headline { color: var(--accent); }
   .result-score { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .best-next-hint { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; text-align: left; line-height: 1.6; }
+  .best-next-hint strong { color: var(--text); }
+  .best-next-hint .hint-label { font-size: 10px; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); opacity: 0.7; margin-bottom: 4px; }
   .score-big { font-family: 'Bebas Neue', sans-serif; font-size: 64px; color: var(--green); letter-spacing: 3px; display: block; margin: 8px 0; }
   .btn-new { background: var(--accent); color: #000; border: none; border-radius: 8px; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1px; padding: 14px 32px; cursor: pointer; transition: opacity 0.2s; align-self: center; }
   .btn-new:hover { opacity: 0.85; }
@@ -216,6 +219,7 @@
 <div class="result-panel" id="resultPanel">
   <div class="result-headline" id="resultHeadline">—</div>
   <div class="result-score" id="resultScore"></div>
+  <div class="best-next-hint" id="bestNextHint" style="display:none"></div>
   <div id="shareRow" style="display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;">
     <button class="btn-share" id="btnShare" onclick="shareResult()">Share Result</button>
     <button class="btn-new" id="btnNext" onclick="nextPuzzle()">Next Puzzle →</button>
@@ -531,6 +535,7 @@ function renderUI() {
   document.getElementById('progressLabel').textContent = `0 / ${puzzle.target.toLocaleString()}`;
   document.getElementById('guessLog').innerHTML = '';
   document.getElementById('resultPanel').className = 'result-panel';
+  document.getElementById('bestNextHint').style.display = 'none';
   document.getElementById('inputRow').style.display = 'flex';
   document.getElementById('errorMsg').className = 'error-msg';
   document.getElementById('shareCopied').textContent = '';
@@ -711,6 +716,23 @@ function stopGame() {
   endGame(false);
 }
 
+// ── BEST NEXT PLAYER HINT ─────────────────────────────────────────────────────
+function getBestNextPlayer() {
+  // Among all unused players, find the one whose stat brings runningTotal
+  // numerically closest to puzzle.target (over or under).
+  let best = null;
+  let bestDist = Infinity;
+  for (const [name, stat] of Object.entries(puzzle.players)) {
+    if (usedPlayers.has(name)) continue;
+    const dist = Math.abs(puzzle.target - (runningTotal + stat));
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = { name, stat, wouldBe: runningTotal + stat };
+    }
+  }
+  return best;
+}
+
 function endGame(busted) {
   gameOver = true;
   document.getElementById('inputRow').style.display = 'none';
@@ -736,6 +758,25 @@ function endGame(busted) {
       : `Stopped at <strong>${runningTotal.toLocaleString()}</strong> — <strong>${diff.toLocaleString()}</strong> ${puzzle.unit} shy (${pct}% of target)<br>
         ${guesses.length} guess${guesses.length !== 1 ? 'es' : ''} × −3 = −${guessCost}pts &nbsp;|&nbsp; Proximity: +${proximity}pts<br><br>
         <span class="score-big">${score} pts</span>`;
+  }
+
+  // ── Best-next-player hint (only when stopped voluntarily with ≥1 guess, not perfect, not busted)
+  const hintEl = document.getElementById('bestNextHint');
+  if (!busted && guesses.length > 0 && diff > 0) {
+    const best = getBestNextPlayer();
+    if (best) {
+      const wouldBust = best.wouldBe > puzzle.target;
+      const gap = wouldBust
+        ? `<em>${(best.wouldBe - puzzle.target).toLocaleString()} ${puzzle.unit} over</em>`
+        : `<em>${(puzzle.target - best.wouldBe).toLocaleString()} ${puzzle.unit} away</em>`;
+      hintEl.innerHTML =
+        `<div class="hint-label">Closest available player</div>` +
+        `<strong>${best.name}</strong> (+${best.stat.toLocaleString()} ${puzzle.unit})` +
+        ` → <strong>${best.wouldBe.toLocaleString()}</strong> &nbsp;—&nbsp; ${gap}`;
+      hintEl.style.display = 'block';
+    }
+  } else {
+    hintEl.style.display = 'none';
   }
 
   if (mode === 'daily') {
